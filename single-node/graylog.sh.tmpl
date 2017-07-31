@@ -1,0 +1,55 @@
+#!/bin/bash
+
+sudo apt-get update 
+sudo apt-get install -y apt-transport-https openjdk-8-jre-headless uuid-runtime pwgen mongodb-server  --force-yes
+sudo systemctl restart mongodb
+sudo wget -qO - https://packages.elastic.co/GPG-KEY-elasticsearch | sudo apt-key add -
+sudo echo "deb https://packages.elastic.co/elasticsearch/2.x/debian stable main" | sudo tee -a /etc/apt/sources.list.d/elasticsearch-2.x.list
+sudo wget https://packages.graylog2.org/repo/packages/graylog-2.2-repository_latest.deb -O /tmp/graylog.deb
+sudo dpkg --force-all -i /tmp/graylog.deb
+
+sudo apt-get update
+sudo apt-get install -y  elasticsearch  --force-yes
+sudo sed -i "/cluster.name:/a cluster.name: '${cluster_name}'" /etc/elasticsearch/elasticsearch.yml
+sudo systemctl daemon-reload
+sudo systemctl enable elasticsearch.service
+sudo systemctl restart elasticsearch.service
+sudo apt-get update
+sudo apt-get install -y graylog-server --force-yes
+
+passwd_sec_val=`pwgen -N 1 -s 96`
+root_pass_val=`echo -n '${admin_pass}' | sha256sum|awk '{print $1}'`
+
+sed -i "s/password_secret =/password_secret = $passwd_sec_val/" /etc/graylog/server/server.conf
+sed -i "s/root_password_sha2 =/root_password_sha2 = $root_pass_val/" /etc/graylog/server/server.conf
+
+sudo systemctl daemon-reload
+sudo systemctl enable graylog-server.service
+sudo systemctl start graylog-server.service
+
+sudo apt-get install -y nginx --force-yes
+sudo mv /etc/nginx/sites-available/default   /etc/nginx/sites-available/default_orig
+
+EIP=`curl http://169.254.169.254/latest/meta-data/public-ipv4`
+
+sudo cat <<-EOF > /etc/nginx/sites-available/default
+server
+{
+  listen      80 default_server;
+  listen      [::]:80 default_server ipv6only=on;
+  server_name $EIP;
+
+  location /
+	{
+		proxy_set_header    Host \$http_host;
+		proxy_set_header    X-Forwarded-Host \$host;
+		proxy_set_header    X-Forwarded-Server \$host;
+		proxy_set_header    X-Forwarded-For \$proxy_add_x_forwarded_for;
+		proxy_set_header    X-Graylog-Server-URL http://$EIP/api;
+		proxy_pass          http://127.0.0.1:9000;
+	}
+}
+EOF
+
+sudo systemctl restart nginx
+sudo systemctl enable nginx
