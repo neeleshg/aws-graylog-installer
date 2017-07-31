@@ -1,12 +1,9 @@
-variable "cluster_name" {}
-variable "admin_pass"   {}
-
 resource "aws_instance" "graylog-server" {
-    ami = "ami-d15a75c7"
-    instance_type = "t2.medium"
-    key_name = "neelesh-gslab-1"
-    subnet_id  = "subnet-48141601"
-    vpc_security_group_ids = ["sg-55ad9724"]
+    ami = "${var.ami_id}"
+    instance_type = "${var.instance_type}"
+    key_name = "${var.key_name}"
+    subnet_id  = "${var.subnet_id}"
+    vpc_security_group_ids = ["${var.security_group}"]
     user_data = "${data.template_file.graylog_script.rendered}"
 }
 
