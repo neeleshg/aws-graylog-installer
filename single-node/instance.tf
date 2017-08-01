@@ -5,6 +5,9 @@ resource "aws_instance" "graylog-server" {
     subnet_id  = "${var.subnet_id}"
     vpc_security_group_ids = ["${var.security_group}"]
     user_data = "${data.template_file.graylog_script.rendered}"
+    tags {
+      "Name" = "Graylog-Server"
+    }
 }
 
 resource "aws_eip" "graylog_pub_ip" {
